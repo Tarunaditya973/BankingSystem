@@ -109,6 +109,49 @@ exports.withdraw = async (req, res) => {
   }
 };
 
+const Account = require("../models/accountModel");
+
+exports.transfer = async (req, res) => {
+  try {
+    const { senderAccountId, receiverAccountNumber, receiverIfscCode, amount } =
+      req.body;
+
+    // Find the sender's account
+    const senderAccount = await Account.findById(senderAccountId);
+    if (!senderAccount) {
+      return res.status(404).json({ error: "Sender account not found" });
+    }
+
+    // Find the receiver's account
+    const receiverAccount = await Account.findOne({
+      account_number: receiverAccountNumber,
+      ifsc_code: receiverIfscCode,
+    });
+    if (!receiverAccount) {
+      return res.status(404).json({ error: "Receiver account not found" });
+    }
+
+    // Check if the sender has sufficient balance
+    if (senderAccount.balance < amount) {
+      return res.status(400).json({ error: "Insufficient balance" });
+    }
+
+    // Update sender's balance
+    senderAccount.balance -= amount;
+    senderAccount.transactions.push({ type: "debit", amount });
+    await senderAccount.save();
+
+    // Update receiver's balance
+    receiverAccount.balance += amount;
+    receiverAccount.transactions.push({ type: "credit", amount });
+    await receiverAccount.save();
+
+    res.status(200).json({ message: "Transfer successful" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
 exports.getBalance = async (req, res) => {
   try {
     const { accountId } = req.params;
